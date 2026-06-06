@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>全息罗盘 · 赛博指南针 | 全屏手动版</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: radial-gradient(ellipse at center, #0a0f1e 0%, #03050a 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Orbitron', 'Segoe UI', 'Arial', sans-serif;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background 0.5s ease;
+    }
+
+    body:fullscreen {
+      background: #010208;
+    }
+    body:-webkit-full-screen {
+      background: #010208;
+    }
+    body:-ms-fullscreen {
+      background: #010208;
+    }
+
+    .bg-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(0, 255, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 255, 0.06) 1px, transparent 1px);
+      background-size: 40px 40px;
+      z-index: 0;
+      animation: gridMove 8s linear infinite;
+    }
+
+    @keyframes gridMove {
+      0% { background-position: 0 0, 0 0; }
+      100% { background-position: 0 40px, 40px 0; }
+    }
+
+    .particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .main-container {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 500px;
+      padding: 20px;
+    }
+
+    .title {
+      font-size: 1.8rem;
+      letter-spacing: 0.3em;
+      color: #00f0ff;
+      text-shadow: 0 0 30px #00f0ff80, 0 0 15px #00f0ff, 0 0 40px #00e5ff;
+      font-weight: 700;
+      text-transform: uppercase;
+      animation: flicker 3s infinite alternate;
+      text-align: center;
+      margin-bottom: 5px;
+    }
+
+    @keyframes flicker {
+      0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+      20%, 24%, 55% { opacity: 0.6; }
+    }
+
+    .compass-wrapper {
+      position: relative;
+      width: min(80vw, 340px);
+      height: min(80vw, 340px);
+      filter: drop-shadow(0 0 35px #00ffffaa) drop-shadow(0 0 15px #ff00ff66);
+      transition: filter 0.4s ease, transform 0.3s ease;
+    }
+
+    .compass-wrapper.spinning {
+      filter: drop-shadow(0 0 60px #00ffff) drop-shadow(0 0 30px #ff00ff) drop-shadow(0 0 100px #0066ff);
+      transform: scale(1.02);
+    }
+
+    .compass-wrapper.locked {
+      filter: drop-shadow(0 0 45px #00ff88) drop-shadow(0 0 20px #00ff88);
+    }
+
+    .compass-wrapper.manual {
+      filter: drop-shadow(0 0 40px #ffaa00) drop-shadow(0 0 20px #ff6600);
+    }
+
+    canvas#compassCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    canvas#compassCanvas:active {
+      cursor: grabbing;
+    }
+
+    .data-panel {
+      display: flex;
+      gap: 25px;
+      background: rgba(0, 10, 30, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 12px 30px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(0, 255, 255, 0.05);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .data-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: #00e0ff;
+      min-width: 80px;
+    }
+
+    .data-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      opacity: 0.7;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .data-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      text-shadow: 0 0 15px #00ffff;
+      font-family: 'Orbitron', monospace;
+      line-height: 1;
+    }
+
+    .data-value .unit {
+      font-size: 1rem;
+      margin-left: 2px;
+      opacity: 0.8;
+    }
+
+    .btn-toolbar {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      margin-top: 5px;
+    }
+
+    .cyber-btn {
+      background: transparent;
+      border: 2px solid #00f0ff;
+      color: #00f0ff;
+      padding: 12px 24px;
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: bold;
+      border-radius: 40px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      background: rgba(0, 20, 40, 0.4);
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+      font-family: 'Orbitron', sans-serif;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .cyber-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.3), transparent);
+      transition: left 0.6s;
+    }
+
+    .cyber-btn:hover:not(:disabled) {
+      background: rgba(0, 40, 80, 0.6);
+      border-color: #ff00ff;
+      color: #fff;
+      box-shadow: 0 0 40px #ff00ff66, 0 0 25px #00ffff;
+      transform: translateY(-2px);
+    }
+
+    .cyber-btn:hover::before {
+      left: 100%;
+    }
+
+    .cyber-btn:active:not(:disabled) {
+      transform: translateY(2px) scale(0.96);
+    }
+
+    .cyber-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+    }
+
+    .btn-icon {
+      font-size: 1.2em;
+    }
+
+    #btnFullscreen {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 15px rgba(255, 170, 0, 0.3);
+    }
+
+    #btnFullscreen:hover:not(:disabled) {
+      border-color: #ffcc00;
+      color: #fff;
+      box-shadow: 0 0 40px #ffaa0066, 0 0 25px #ffcc00;
+    }
+
+    .status-bar {
+      color: #00eaff;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-align: center;
+      min-height: 20px;
+      text-shadow: 0 0 8px cyan;
+      opacity: 0.9;
+      margin-top: -5px;
+    }
+
+    .hint {
+      color: rgba(0, 255, 255, 0.5);
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      margin-top: -10px;
+    }
+
+    @media (max-width: 420px) {
+      .title {
+        font-size: 1.4rem;
+      }
+      .data-panel {
+        gap: 15px;
+        padding: 10px 20px;
+      }
+      .data-value {
+        font-size: 1.5rem;
+      }
+      .cyber-btn {
+        padding: 10px 18px;
+        font-size: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <canvas class="particles" id="particleCanvas"></canvas>
+
+  <div class="main-container">
+    <div class="title">◈ 全息罗盘 ◈</div>
+
+    <div class="compass-wrapper" id="compassWrapper">
+      <canvas id="compassCanvas" width="680" height="680" aria-label="赛博指南针"></canvas>
+    </div>
+
+    <div class="data-panel">
+      <div class="data-item">
+        <span class="data-label">方位角</span>
+        <span class="data-value" id="azimuthValue">0<span class="unit">°</span></span>
+      </div>
+      <div class="data-item">
+        <span class="data-label">模式</span>
+        <span class="data-value" style="font-size:1.1rem;" id="lockStatus">待机</span>
+      </div>
+    </div>
+
+    <div class="btn-toolbar">
+      <button class="cyber-btn" id="btnFullscreen">
+        <span class="btn-icon">⛶</span> 全屏
+      </button>
+      <button class="cyber-btn" id="btnCalibrate">
+        <span class="btn-icon">⚡</span> 校准
+      </button>
+      <button class="cyber-btn" id="btnSimulate" style="border-color:#ff00ff; color:#ff66ff;">
+        <span class="btn-icon">🔄</span> 模拟
+      </button>
+    </div>
+
+    <div class="status-bar" id="statusBar">系统就绪 · 可手动拨动罗盘</div>
+    <div class="hint">拖动指针旋转 · 点击按钮自动校准</div>
+  </div>
+
+  <script>
+    (function() {
+      // ==================== 粒子背景 ====================
+      const particleCanvas = document.getElementById('particleCanvas');
+      const pCtx = particleCanvas.getContext('2d');
+      let particles = [];
+      const PARTICLE_COUNT = 70;
+
+      function resizeParticleCanvas() {
+        particleCanvas.width = window.innerWidth;
+        particleCanvas.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resizeParticleCanvas);
+      resizeParticleCanvas();
+
+      class Particle {
+        constructor() {
+          this.reset();
+        }
+        reset() {
+          this.x = Math.random() * particleCanvas.width;
+          this.y = Math.random() * particleCanvas.height;
+          this.size = Math.random() * 2.5 + 0.8;
+          this.speedX = (Math.random() - 0.5) * 0.6;
+          this.speedY = (Math.random() - 0.5) * 0.6;
+          this.opacity = Math.random() * 0.7 + 0.3;
+        }
+        update() {
+          this.x += this.speedX;
+          this.y += this.speedY;
+          if (this.x < 0 || this.x > particleCanvas.width || this.y < 0 || this.y > particleCanvas.height) {
+            this.reset();
+            this.x = Math.random() * particleCanvas.width;
+            this.y = Math.random() * particleCanvas.height;
+          }
+        }
+        draw(ctx) {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(0, 255, 255, ${this.opacity})`;
+          ctx.shadowColor = '#00ffff';
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push(new Particle());
+      }
+
+      function animateParticles() {
+        pCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+        particles.forEach(p => {
+          p.update();
+          p.draw(pCtx);
+        });
+        for (let i = 0; i < particles.length; i++) {
+          for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 120) {
+              pCtx.beginPath();
+              pCtx.moveTo(particles[i].x, particles[i].y);
+              pCtx.lineTo(particles[j].x, particles[j].y);
+              pCtx.strokeStyle = `rgba(0, 255, 255, ${0.08 * (1 - dist / 120)})`;
+              pCtx.lineWidth = 0.6;
+              pCtx.stroke();
+            }
+          }
+        }
+        requestAnimationFrame(animateParticles);
+      }
+      animateParticles();
+
+      // ==================== 主罗盘 ====================
+      const canvas = document.getElementById('compassCanvas');
+      const ctx = canvas.getContext('2d');
+      const wrapper = document.getElementById('compassWrapper');
+      const btnCalibrate = document.getElementById('btnCalibrate');
+      const btnSimulate = document.getElementById('btnSimulate');
+      const btnFullscreen = document.getElementById('btnFullscreen');
+      const azimuthEl = document.getElementById('azimuthValue');
+      const lockStatusEl = document.getElementById('lockStatus');
+      const statusBar = document.getElementById('statusBar');
+
+      const CANVAS_SIZE = 680;
+      const CENTER = CANVAS_SIZE / 2;
+      const RADIUS = CANVAS_SIZE / 2 - 15;
+
+      canvas.width = CANVAS_SIZE;
+      canvas.height = CANVAS_SIZE;
+
+      let currentAngle = (Math.random() * 360) * (Math.PI / 180);
+      let targetSensorAngle = 0;
+      let isAnimating = false;
+      let animationId = null;
+      let sensorAvailable = null;
+      let hasPermission = null;
+
+      let isDragging = false;
+      let dragStartMouseAngle = 0;
+      let dragStartCompassAngle = 0;
+
+      function updateModeDisplay(mode) {
+        lockStatusEl.textContent = mode;
+        switch (mode) {
+          case '手动':
+            lockStatusEl.style.color = '#ffaa00';
+            wrapper.classList.add('manual');
+            wrapper.classList.remove('locked', 'spinning');
+            break;
+          case '已锁定':
+            lockStatusEl.style.color = '#00ff88';
+            wrapper.classList.add('locked');
+            wrapper.classList.remove('manual', 'spinning');
+            break;
+          case '自动中':
+            lockStatusEl.style.color = '#00f0ff';
+            wrapper.classList.add('spinning');
+            wrapper.classList.remove('manual', 'locked');
+            break;
+          default:
+            lockStatusEl.style.color = '#00e0ff';
+            wrapper.classList.remove('manual', 'locked', 'spinning');
+        }
+      }
+
+      function drawCompass(pointerAngleRad) {
+        ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        ctx.save();
+        ctx.translate(CENTER, CENTER);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, RADIUS + 8, 0, Math.PI * 2);
+        const glowGrad = ctx.createRadialGradient(0, 0, RADIUS - 5, 0, 0, RADIUS + 15);
+        glowGrad.addColorStop(0, 'rgba(0, 255, 255, 0)');
+        glowGrad.addColorStop(0.6, 'rgba(0, 255, 255, 0.15)');
+        glowGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+        ctx.fillStyle = glowGrad;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, RADIUS, 0, Math.PI * 2);
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 20;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, RADIUS - 12, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ff00ff';
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = '#ff00ff';
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        for (let i = 0; i < 120; i++) {
+          const angle = (i / 120) * Math.PI * 2 - Math.PI / 2;
+          const isMajor = i % 30 === 0;
+          const isMedium = i % 10 === 0;
+          const outerR = RADIUS - 18;
+          const innerR = isMajor ? RADIUS - 45 : (isMedium ? RADIUS - 35 : RADIUS - 28);
+          const x1 = Math.cos(angle) * outerR;
+          const y1 = Math.sin(angle) * outerR;
+          const x2 = Math.cos(angle) * innerR;
+          const y2 = Math.sin(angle) * innerR;
+
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.strokeStyle = isMajor ? '#00ffff' : '#00ccff';
+          ctx.lineWidth = isMajor ? 2.5 : 1;
+          ctx.shadowBlur = isMajor ? 10 : 4;
+          ctx.shadowColor = '#00ffff';
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+
+        const dirLabels = [
+          { text: 'N', angle: -Math.PI/2, color: '#ff3366', size: 40 },
+          { text: 'S', angle: Math.PI/2, color: '#00ccff', size: 28 },
+          { text: 'E', angle: 0, color: '#00ccff', size: 28 },
+          { text: 'W', angle: Math.PI, color: '#00ccff', size: 28 },
+        ];
+        dirLabels.forEach(l => {
+          const x = Math.cos(l.angle) * (RADIUS - 68);
+          const y = Math.sin(l.angle) * (RADIUS - 68);
+          ctx.font = `bold ${l.size}px 'Orbitron', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = l.color;
+          ctx.shadowColor = l.color;
+          ctx.shadowBlur = 20;
+          ctx.fillText(l.text, x, y);
+        });
+        ctx.shadowBlur = 0;
+
+        ctx.save();
+        ctx.rotate(pointerAngleRad);
+
+        ctx.beginPath();
+        ctx.moveTo(0, -RADIUS + 55);
+        ctx.lineTo(-12, 20);
+        ctx.lineTo(-6, 20);
+        ctx.lineTo(0, 40);
+        ctx.lineTo(6, 20);
+        ctx.lineTo(12, 20);
+        ctx.closePath();
+        const northGrad = ctx.createLinearGradient(0, -RADIUS+55, 0, 40);
+        northGrad.addColorStop(0, '#ff3366');
+        northGrad.addColorStop(0.5, '#ff0066');
+        northGrad.addColorStop(1, '#990033');
+        ctx.fillStyle = northGrad;
+        ctx.shadowColor = '#ff0066';
+        ctx.shadowBlur = 25;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, RADIUS - 65);
+        ctx.lineTo(-10, 10);
+        ctx.lineTo(-6, 10);
+        ctx.lineTo(0, 40);
+        ctx.lineTo(6, 10);
+        ctx.lineTo(10, 10);
+        ctx.closePath();
+        const southGrad = ctx.createLinearGradient(0, RADIUS-65, 0, 10);
+        southGrad.addColorStop(0, '#00ccff');
+        southGrad.addColorStop(1, '#003366');
+        ctx.fillStyle = southGrad;
+        ctx.shadowColor = '#00ccff';
+        ctx.shadowBlur = 25;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.restore();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 16, 0, Math.PI*2);
+        const coreGrad = ctx.createRadialGradient(0, 0, 3, 0, 0, 16);
+        coreGrad.addColorStop(0, '#fff');
+        coreGrad.addColorStop(0.3, '#ff00ff');
+        coreGrad.addColorStop(0.7, '#00ffff');
+        coreGrad.addColorStop(1, '#000');
+        ctx.fillStyle = coreGrad;
+        ctx.shadowColor = '#ff00ff';
+        ctx.shadowBlur = 30;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI*2);
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#fff';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+
+        const degrees = ((pointerAngleRad * 180 / Math.PI) % 360 + 360) % 360;
+        azimuthEl.innerHTML = `${degrees.toFixed(1)}<span class="unit">°</span>`;
+      }
+
+      // ==================== 全屏 ====================
+      function toggleFullscreen() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+          const elem = document.documentElement;
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen();
+          } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+          } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+          }
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+          }
+        }
+      }
+
+      function updateFullscreenIcon() {
+        const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        if (isFull) {
+          btnFullscreen.innerHTML = '<span class="btn-icon">⛶</span> 退出';
+        } else {
+          btnFullscreen.innerHTML = '<span class="btn-icon">⛶</span> 全屏';
+        }
+      }
+
+      document.addEventListener('fullscreenchange', updateFullscreenIcon);
+      document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+      btnFullscreen.addEventListener('click', toggleFullscreen);
+
+      // ==================== 手动拖动 ====================
+      function getEventAngle(e) {
+        const rect = canvas.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        let clientX, clientY;
+        
+        if (e.touches) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+        
+        return Math.atan2(clientY - centerY, clientX - centerX) + Math.PI / 2;
+      }
+
+      function startDrag(e) {
+        if (isAnimating) {
+          cancelAnimationFrame(animationId);
+          isAnimating = false;
+          wrapper.classList.remove('spinning');
+        }
+        
+        isDragging = true;
+        dragStartMouseAngle = getEventAngle(e);
+        dragStartCompassAngle = currentAngle;
+        canvas.style.cursor = 'grabbing';
+        updateModeDisplay('手动');
+        statusBar.textContent = '🖐️ 手动拨动中 · 释放指针锁定方向';
+        e.preventDefault();
+      }
+
+      function onDrag(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        
+        const currentMouseAngle = getEventAngle(e);
+        let delta = currentMouseAngle - dragStartMouseAngle;
+        if (delta > Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        
+        currentAngle = dragStartCompassAngle + delta;
+        drawCompass(currentAngle);
+      }
+
+      function endDrag(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        canvas.style.cursor = 'grab';
+        targetSensorAngle = currentAngle;
+        statusBar.textContent = '✅ 手动锁定方向 · 可再次拨动或校准';
+        if (e) e.preventDefault();
+      }
+
+      canvas.addEventListener('mousedown', startDrag);
+      window.addEventListener('mousemove', (e) => {
+        if (isDragging) onDrag(e);
+      });
+      window.addEventListener('mouseup', endDrag);
+      canvas.addEventListener('touchstart', startDrag, { passive: false });
+      canvas.addEventListener('touchmove', onDrag, { passive: false });
+      canvas.addEventListener('touchend', endDrag);
+      window.addEventListener('mouseleave', () => {
+        if (isDragging) {
+          isDragging = false;
+          canvas.style.cursor = 'grab';
+          statusBar.textContent = '🖐️ 已释放 · 方向已锁定';
+        }
+      });
+
+      // ==================== 传感器 ====================
+      async function requestPermission() {
+        if (typeof DeviceOrientationEvent === 'undefined') return false;
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          try {
+            const perm = await DeviceOrientationEvent.requestPermission();
+            return perm === 'granted';
+          } catch (e) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      function getSensorHeading() {
+        return new Promise((resolve, reject) => {
+          let resolved = false;
+          const handler = (e) => {
+            if (resolved) return;
+            let heading = null;
+            if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+              heading = e.webkitCompassHeading;
+            } else if (e.alpha !== null && e.alpha !== undefined) {
+              heading = e.alpha;
+            }
+            if (heading !== null && !isNaN(heading)) {
+              resolved = true;
+              window.removeEventListener('deviceorientation', handler);
+              resolve(heading * Math.PI / 180);
+            }
+          };
+          window.addEventListener('deviceorientation', handler);
+          setTimeout(() => {
+            if (!resolved) {
+              window.removeEventListener('deviceorientation', handler);
+              reject(new Error('传感器超时'));
+            }
+          }, 800);
+        });
+      }
+
+      function updateSensorStatus() {
+        if (sensorAvailable) {
+          statusBar.textContent = '📡 传感器可用 · 点击校准获取真实北方';
+        } else {
+          statusBar.textContent = '📴 桌面模式 · 可使用模拟指向';
+        }
+      }
+
+      // ==================== 自动旋转动画（降速版） ====================
+      function startSpinAnimation(finalAngleRad) {
+        if (isDragging) {
+          isDragging = false;
+          canvas.style.cursor = 'grab';
+        }
+        if (isAnimating) {
+          cancelAnimationFrame(animationId);
+          isAnimating = false;
+        }
+
+        updateModeDisplay('自动中');
+        statusBar.textContent = '⚡ 校准中 · 旋转稳定指向...';
+        btnCalibrate.disabled = true;
+        btnSimulate.disabled = true;
+
+        let currentDeg = (currentAngle * 180 / Math.PI) % 360;
+        let targetDeg = (finalAngleRad * 180 / Math.PI) % 360;
+        if (targetDeg < 0) targetDeg += 360;
+        if (currentDeg < 0) currentDeg += 360;
+
+        let delta = targetDeg - currentDeg;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+
+        const FULL_ROTATIONS = 5;
+        let totalDeltaDeg = delta + FULL_ROTATIONS * 360;
+        while (Math.abs(totalDeltaDeg) < FULL_ROTATIONS * 360) {
+          totalDeltaDeg += (delta > 0 ? 360 : -360);
+        }
+
+        const startAngle = currentAngle;
+        const targetAngle = startAngle + totalDeltaDeg * Math.PI / 180;
+        // 这里将动画时长从2200ms延长到3800ms，使旋转速度明显变慢
+        const duration = 3800;
+        const startTime = performance.now();
+
+        isAnimating = true;
+
+        function animate(now) {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1.0);
+          const eased = 1 - Math.pow(1 - progress, 3.5);
+          const angle = startAngle + (targetAngle - startAngle) * eased;
+          currentAngle = angle;
+          drawCompass(currentAngle);
+
+          if (progress < 1.0) {
+            animationId = requestAnimationFrame(animate);
+          } else {
+            currentAngle = finalAngleRad;
+            drawCompass(currentAngle);
+            isAnimating = false;
+            animationId = null;
+            updateModeDisplay('已锁定');
+            statusBar.textContent = '✅ 校准完成 · 指向北方';
+            btnCalibrate.disabled = false;
+            btnSimulate.disabled = false;
+            if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+            setTimeout(() => {
+              if (!isDragging && !isAnimating) {
+                updateModeDisplay('待机');
+                wrapper.classList.remove('locked');
+              }
+            }, 3000);
+          }
+        }
+
+        animationId = requestAnimationFrame(animate);
+      }
+
+      function simulateNorth() {
+        startSpinAnimation(0);
+      }
+
+      async function calibrateWithSensor() {
+        btnCalibrate.disabled = true;
+        btnSimulate.disabled = true;
+        statusBar.textContent = '🔍 正在请求传感器权限...';
+
+        try {
+          if (hasPermission === null) {
+            const granted = await requestPermission();
+            hasPermission = granted;
+            if (!granted) {
+              sensorAvailable = false;
+              statusBar.textContent = '⚠️ 权限未授予，使用模拟模式';
+              updateSensorStatus();
+              simulateNorth();
+              return;
+            }
+          }
+
+          statusBar.textContent = '📡 读取地磁数据...';
+          const headingRad = await getSensorHeading();
+          sensorAvailable = true;
+          targetSensorAngle = headingRad;
+          statusBar.textContent = '🧲 获取到真实方位，开始旋转';
+          startSpinAnimation(headingRad);
+        } catch (err) {
+          console.warn('传感器错误:', err);
+          sensorAvailable = false;
+          statusBar.textContent = '⚠️ 传感器不可用，切换模拟模式';
+          updateSensorStatus();
+          simulateNorth();
+        } finally {
+          if (!isAnimating) {
+            btnCalibrate.disabled = false;
+            btnSimulate.disabled = false;
+          }
+        }
+      }
+
+      btnCalibrate.addEventListener('click', () => {
+        if (isAnimating || isDragging) return;
+        calibrateWithSensor();
+      });
+
+      btnSimulate.addEventListener('click', () => {
+        if (isAnimating || isDragging) return;
+        sensorAvailable = false;
+        hasPermission = false;
+        updateSensorStatus();
+        simulateNorth();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          if (!isAnimating && !isDragging) calibrateWithSensor();
+        } else if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          toggleFullscreen();
+        }
+      });
+
+      drawCompass(currentAngle);
+      updateModeDisplay('待机');
+      
+      async function initSensorCheck() {
+        if (typeof DeviceOrientationEvent === 'undefined') {
+          sensorAvailable = false;
+          hasPermission = false;
+        } else {
+          try {
+            await getSensorHeading();
+            sensorAvailable = true;
+          } catch (e) {
+            sensorAvailable = false;
+          }
+        }
+        updateSensorStatus();
+      }
+      initSensorCheck();
+
+      console.log('🌐 赛博指南针已启动 | 旋转速度已降低 | 手动拨动 | 按空格校准 | 按F全屏');
+    })();
+  </script>
+</body>
+</html>
